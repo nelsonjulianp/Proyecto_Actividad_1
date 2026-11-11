@@ -13,7 +13,11 @@ dependencies = [
     "scikit-learn (==1.9.1)",
     "pandas (==3.0.6)",
     "numpy (==2.5.4)",
-    "pyyaml (==6.0.3)"
+    "pyyaml (==6.0.3)",
+    "lightgbm (>=4.7.0,<5.0.0)",
+    "xgboost (>=3.4.1,<4.0.0)",
+    "fastapi (>=0.162.4,<0.163.0)",
+    "uvicorn (>=0.54.0,<0.55.0)"
 ]
 
 

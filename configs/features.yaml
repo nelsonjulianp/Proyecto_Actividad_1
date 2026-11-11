@@ -1,0 +1,9 @@
+# Selección de variables para el experimento (ALL, NUMERIC o CUSTOM)
+seleccion: ALL
+
+custom:
+  - Num_Tarjetas
+  - Balance_Tj
+  - Total_Transac
+  - Trans_Int
+  - Tipo_Tarjeta
