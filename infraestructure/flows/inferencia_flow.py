@@ -1,10 +1,10 @@
-"""Pipeline de inferencia por lotes en Prefect que consume el modelo champion."""
+"""Actividad 3: Pipeline de inferencia por lotes con drift emulado."""
 import os
 import sys
 from datetime import date
 from pathlib import Path
 
-# Asegurar la raíz del proyecto en el path
+# Asegurar la raíz del proyecto en el path (Windows/Linux)
 ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
@@ -14,6 +14,7 @@ import yaml
 from mlflow.tracking import MlflowClient
 from prefect import flow, task
 
+from domain.monitoreo import aplicar_drift, dividir
 from scripts.load_data import cargar_datos as leer_datos
 
 CONFIG_PATH = ROOT_DIR / "configs" / "config.yaml"
@@ -36,12 +37,23 @@ def cargar_champion(cfg):
 
 @task(name="ingestar_lote")
 def ingestar_lote(cfg):
-    """Extrae un lote de transacciones para evaluar la inferencia del día."""
+    """Toma un lote de la partición de prueba, aplica drift emulado y guarda copia para monitoreo."""
     ruta_datos = ROOT_DIR / cfg["datos"]["ruta"]
     df = leer_datos(str(ruta_datos))
+    _, prueba = dividir(df, cfg["division"])
+
     tamano = cfg["inferencia"]["tamano_lote"]
-    print(f"Ingestando lote de {tamano} transacciones simuladas...")
-    return df.sample(n=tamano, random_state=int(date.today().strftime("%Y%m%d")))
+    nivel_drift = cfg["inferencia"]["nivel_drift"]
+    semilla = cfg["division"]["random_state"]
+
+    base = prueba.sample(n=tamano, random_state=semilla)
+    lote = aplicar_drift(base, nivel=nivel_drift, semilla=semilla)
+
+    ruta_lote = ROOT_DIR / cfg["monitoreo"]["lote_actual"]
+    ruta_lote.parent.mkdir(parents=True, exist_ok=True)
+    lote.to_csv(ruta_lote, index=False)
+    print(f"Lote con drift {nivel_drift} guardado en {ruta_lote} ({len(lote)} filas)")
+    return lote
 
 
 @task(name="predecir_y_guardar")
@@ -64,8 +76,8 @@ def predecir_y_guardar(modelo, lote, cfg):
 
 
 @task(name="registrar_inferencia_mlflow")
-def registrar_inferencia_mlflow(version, run_id_train, ruta_csv, total_filas, proba_media, cfg):
-    """Crea un run en MLflow que enlaza la inferencia con la versión del modelo champion."""
+def registrar_inferencia_mlflow(version, run_id_train, nivel_drift, ruta_csv, total_filas, proba_media, cfg):
+    """Crea un run en MLflow que enlaza la inferencia con el champion y el nivel de drift."""
     tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", cfg["mlflow"]["tracking_uri"])
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(cfg["mlflow"]["experimento"])
@@ -74,6 +86,7 @@ def registrar_inferencia_mlflow(version, run_id_train, ruta_csv, total_filas, pr
         mlflow.set_tag("fase", "inferencia")
         mlflow.set_tag("modelo_version", version)
         mlflow.set_tag("modelo_run_id_origen", run_id_train)
+        mlflow.set_tag("nivel_drift", nivel_drift)
         mlflow.log_metric("transacciones_evaluadas", total_filas)
         mlflow.log_metric("probabilidad_media_fraude", proba_media)
         mlflow.log_artifact(ruta_csv)
@@ -88,7 +101,15 @@ def inferencia_flow():
     modelo, version, run_id_train = cargar_champion(cfg)
     lote = ingestar_lote(cfg)
     ruta_csv, filas, proba_media = predecir_y_guardar(modelo, lote, cfg)
-    registrar_inferencia_mlflow(version, run_id_train, ruta_csv, filas, proba_media, cfg)
+    registrar_inferencia_mlflow(
+        version,
+        run_id_train,
+        cfg["inferencia"]["nivel_drift"],
+        ruta_csv,
+        filas,
+        proba_media,
+        cfg,
+    )
 
 
 if __name__ == "__main__":

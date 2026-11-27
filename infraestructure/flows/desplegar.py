@@ -1,8 +1,4 @@
-"""Actividad 2: Despliegue de los pipelines en Prefect con serve.
-
-- entrenamiento-fraude-deployment: Sin horario cron, lanzado a mano desde la UI.
-- inferencia-diaria-deployment: Horario cron diario a las 06:00 UTC ("0 6 * * *").
-"""
+"""Actividad 3: Despliegue de los pipelines de entrenamiento, inferencia y monitoreo en Prefect."""
 import sys
 from pathlib import Path
 
@@ -11,6 +7,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from prefect import serve
+from infraestructure.flows.drift_evento_flow import drift_evento_flow
+from infraestructure.flows.drift_features_flow import drift_features_flow
 from infraestructure.flows.entrenamiento_flow import entrenamiento_flow
 from infraestructure.flows.inferencia_flow import inferencia_flow
 
@@ -24,5 +22,18 @@ if __name__ == "__main__":
         cron="0 6 * * *",
     )
 
+    despliegue_drift_features = drift_features_flow.to_deployment(
+        name="drift-features-deployment"
+    )
+
+    despliegue_drift_evento = drift_evento_flow.to_deployment(
+        name="drift-evento-deployment"
+    )
+
     print("Publicando y sirviendo despliegues en Prefect (http://localhost:4200)...")
-    serve(despliegue_entrenamiento, despliegue_inferencia)
+    serve(
+        despliegue_entrenamiento,
+        despliegue_inferencia,
+        despliegue_drift_features,
+        despliegue_drift_evento,
+    )

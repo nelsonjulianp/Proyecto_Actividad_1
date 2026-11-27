@@ -1,4 +1,4 @@
-# Configuración del proyecto de detección de fraude (Actividad 2)
+# Configuración del proyecto de detección de fraude (Actividad 3)
 
 datos:
   ruta: data/train.csv
@@ -8,7 +8,6 @@ division:
   random_state: 42          # Semilla para reproducibilidad
 
 # Modelos candidatos a comparar en el entrenamiento.
-# Prefect entrenará cada candidato y MLflow coronará con el alias 'champion' al de mayor AUC.
 candidatos:
   - nombre_run: fraude-logit-c1
     tipo: logistic_regression
@@ -51,5 +50,13 @@ registro:
   umbral_auc: 0.85                 # AUC mínimo para poder aspirar a champion
 
 inferencia:
-  tamano_lote: 100                 # Transacciones a puntuar en la ejecución diaria
+  tamano_lote: 500                 # Transacciones a puntuar en la ejecución
   carpeta_salida: data/predicciones
+  nivel_drift: 0.6                 # Emulación de drift: 0.0 (sin drift), 0.3 (moderado), 0.6 (alto)
+
+# Actividad 3: detección de drift
+monitoreo:
+  lote_actual: lotes/lote_actual.csv  # Copia del lote puntuado para los flows de drift
+  umbral_drift: 0.25                  # Fracción de variables con drift (2/7 = 28.6% > 25% dispara alerta)
+  alfa_evento: 0.05                   # p-valor por debajo del cual se alerta drift en Fraude
+  carpeta_reportes: reports           # Carpeta donde se guardan los reportes HTML de Evidently
